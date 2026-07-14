@@ -27,7 +27,6 @@ jobs:
   create-release:
     runs-on: ubuntu-latest
     outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
       version: ${{ steps.get_version.outputs.version }}
 
     steps:
@@ -94,16 +93,8 @@ jobs:
           targets: |
             ${{ matrix.arch == 'aarch64' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin' }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install bun
-        run: npm install -g bun
-
-      - name: Install Tauri CLI
-        run: bun install --global @tauri-apps/cli@latest
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
         run: |
@@ -127,8 +118,7 @@ jobs:
       - name: Upload .app
         uses: softprops/action-gh-release@v2
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          files: src-tauri/target/*/release/bundle/macos/*.app
+          files: src-tauri/target/${{ matrix.arch == 'aarch64' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin' }}/release/bundle/macos/*.app
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -147,23 +137,15 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
 
       - name: Install CUDA Toolkit
         uses: Jimver/cuda-toolkit@v0.2
         with:
           cuda: "12.5"
           method: "network"
-          sub-packages: ["nvcc"]
-
-      - name: Install bun
-        run: npm install -g bun
-
-      - name: Install Tauri CLI
-        run: bun install --global @tauri-apps/cli@latest
+          sub-packages: '["nvcc"]'
 
       - name: Install dependencies
         run: |
@@ -174,7 +156,7 @@ jobs:
       - name: 编译 slime_cmp (C)
         run: |
           cd slime-calculator
-          mkdir build 2>$null
+          mkdir build -Force
           gcc -o build/slime_cmp.exe slime_cmp.c -lm -O3
         shell: pwsh
 
@@ -199,7 +181,6 @@ jobs:
       - name: Upload .exe
         uses: softprops/action-gh-release@v2
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
           files: src-tauri/target/release/bundle/nsis/*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -219,17 +200,15 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
 
       - name: Install CUDA Toolkit
         uses: Jimver/cuda-toolkit@v0.2
         with:
           cuda: "12.5"
           method: "network"
-          sub-packages: ["nvcc"]
+          sub-packages: '["nvcc"]'
 
       - name: Install system dependencies
         run: |
@@ -241,12 +220,6 @@ jobs:
             libxdo-dev libssl-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev
-
-      - name: Install bun
-        run: npm install -g bun
-
-      - name: Install Tauri CLI
-        run: bun install --global @tauri-apps/cli@latest
 
       - name: Install dependencies
         run: |
@@ -271,7 +244,6 @@ jobs:
       - name: Upload .AppImage
         uses: softprops/action-gh-release@v2
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
           files: src-tauri/target/release/bundle/appimage/*.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
