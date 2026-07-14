@@ -260,17 +260,18 @@ function renderChart(data) {
 
   const canvas = dom.resultChart;
   const rect = canvas.parentElement.getBoundingClientRect();
-  const w = Math.min(rect.width - 24, 600);
-  const aspect = 400 / 600;
-  canvas.width = w * 2; // retina
-  canvas.height = w * aspect * 2;
-  canvas.style.width = `${w}px`;
-  canvas.style.height = `${w * aspect}px`;
+  const size = Math.min(rect.width - 24, 600);
+  const dpr = 2; // retina
+  canvas.width = size * dpr;
+  canvas.height = size * dpr;
+  canvas.style.width = `${size}px`;
+  canvas.style.height = `${size}px`;
 
   const ctx = canvas.getContext("2d");
   const W = canvas.width;
   const H = canvas.height;
-  const pad = 60;
+  const pad = 70;
+  const tickSize = 6;
 
   const xs = data.map((r) => r.x);
   const zs = data.map((r) => r.z);
@@ -284,12 +285,19 @@ function renderChart(data) {
   const rangeZ = Math.max(maxZ - minZ, 1);
   const maxCount = Math.max(...counts);
 
-  const scaleX = (W - pad * 2) / rangeX;
-  const scaleZ = (H - pad * 2) / rangeZ;
-  const scale = Math.min(scaleX, scaleZ);
+  // Compute plot area: use the larger range to determine scale so both axes use the same scale
+  const maxRange = Math.max(rangeX, rangeZ);
+  const availW = W - pad * 2;
+  const availH = H - pad * 2;
+  const plotSize = Math.min(availW, availH);
+  const scale = plotSize / maxRange;
 
-  const ox = (W - rangeX * scale) / 2;
-  const oy = (H - rangeZ * scale) / 2;
+  const plotW = rangeX * scale;
+  const plotH = rangeZ * scale;
+  const ox = (W - plotW) / 2;
+  const oy = (H - plotH) / 2;
+
+  const fontSize = (pt) => `${Math.round(pt * dpr)}px -apple-system, sans-serif`;
 
   ctx.clearRect(0, 0, W, H);
 
@@ -297,51 +305,82 @@ function renderChart(data) {
   ctx.fillStyle = "#0d1117";
   ctx.fillRect(0, 0, W, H);
 
-  // Grid
+  // ── Grid ──
   ctx.strokeStyle = "#21262d";
   ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i++) {
-    const x = ox + (rangeX * scale * i) / 4;
-    const y = oy + (rangeZ * scale * i) / 4;
+    const t = i / 4;
+    const x = ox + plotW * t;
+    const y = oy + plotH * t;
+    // Vertical
     ctx.beginPath();
     ctx.moveTo(x, oy);
-    ctx.lineTo(x, oy + rangeZ * scale);
+    ctx.lineTo(x, oy + plotH);
     ctx.stroke();
+    // Horizontal
     ctx.beginPath();
     ctx.moveTo(ox, y);
-    ctx.lineTo(ox + rangeX * scale, y);
+    ctx.lineTo(ox + plotW, y);
     ctx.stroke();
   }
 
-  // Axis labels
-  ctx.fillStyle = "#8b949e";
-  ctx.font = `${Math.round(11 * (W / 600))}px -apple-system, sans-serif`;
-  ctx.textAlign = "center";
+  // ── Tick marks ──
+  ctx.strokeStyle = "#8b949e";
+  ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i++) {
-    const val = minX + (rangeX * i) / 4;
-    const x = ox + (rangeX * scale * i) / 4;
-    ctx.fillText(Math.round(val), x, oy + rangeZ * scale + 18);
-
-    const zval = minZ + (rangeZ * i) / 4;
-    const y = oy + (rangeZ * scale * i) / 4 + 4;
-    ctx.textAlign = "right";
-    ctx.fillText(Math.round(zval), ox - 8, y);
-    ctx.textAlign = "center";
+    const t = i / 4;
+    const x = ox + plotW * t;
+    const y = oy + plotH * t;
+    // X ticks (bottom)
+    ctx.beginPath();
+    ctx.moveTo(x, oy + plotH);
+    ctx.lineTo(x, oy + plotH + tickSize);
+    ctx.stroke();
+    // Z ticks (left)
+    ctx.beginPath();
+    ctx.moveTo(ox, y);
+    ctx.lineTo(ox - tickSize, y);
+    ctx.stroke();
   }
 
-  // Axis titles
-  ctx.fillStyle = "#6e7681";
-  ctx.font = `${Math.round(12 * (W / 600))}px -apple-system, sans-serif`;
+  // ── Axis tick labels ──
+  ctx.fillStyle = "#8b949e";
+  ctx.font = fontSize(11);
   ctx.textAlign = "center";
-  ctx.fillText("X →", ox + (rangeX * scale) / 2, H - 6);
+  ctx.textBaseline = "top";
+  for (let i = 0; i <= 4; i++) {
+    const t = i / 4;
+    const val = minX + rangeX * t;
+    const x = ox + plotW * t;
+    ctx.fillText(Math.round(val), x, oy + plotH + tickSize + 4);
+  }
+
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i <= 4; i++) {
+    const t = i / 4;
+    const zval = minZ + rangeZ * t;
+    const y = oy + plotH * t;
+    ctx.fillText(Math.round(zval), ox - tickSize - 4, y);
+  }
+
+  // ── Axis titles ──
+  ctx.fillStyle = "#6e7681";
+  ctx.font = fontSize(13);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.fillText("X →", ox + plotW / 2, oy + plotH + tickSize + 22);
+
   ctx.save();
-  ctx.translate(14, oy + (rangeZ * scale) / 2);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+  ctx.translate(ox - tickSize - 24, oy + plotH / 2);
   ctx.rotate(-Math.PI / 2);
   ctx.fillText("Z →", 0, 0);
   ctx.restore();
 
-  // Data points
-  const radius = Math.max(3, Math.min(8, (W / data.length) * 2));
+  // ── Data points ──
+  const radius = Math.max(4, Math.min(10, (plotSize / Math.max(data.length, 1)) * 1.5));
 
   // Sort by count so higher count draws on top
   const sorted = [...data].sort((a, b) => a.slime_count - b.slime_count);
@@ -357,24 +396,25 @@ function renderChart(data) {
     ctx.arc(x, z, rSize, 0, Math.PI * 2);
 
     if (ratio > 0.7) {
-      ctx.fillStyle = "rgba(248, 81, 73, 0.7)";
+      ctx.fillStyle = "rgba(248, 81, 73, 0.8)";
     } else if (ratio > 0.4) {
-      ctx.fillStyle = "rgba(210, 153, 34, 0.7)";
+      ctx.fillStyle = "rgba(210, 153, 34, 0.8)";
     } else {
-      ctx.fillStyle = "rgba(126, 231, 135, 0.7)";
+      ctx.fillStyle = "rgba(126, 231, 135, 0.8)";
     }
     ctx.fill();
 
-    ctx.strokeStyle = "rgba(255,255,255,0.15)";
-    ctx.lineWidth = 0.5;
+    ctx.strokeStyle = "rgba(255,255,255,0.2)";
+    ctx.lineWidth = 1;
     ctx.stroke();
   }
 
-  // Title
+  // ── Title ──
   ctx.fillStyle = "#8b949e";
-  ctx.font = `${Math.round(13 * (W / 600))}px -apple-system, sans-serif`;
+  ctx.font = fontSize(13);
   ctx.textAlign = "left";
-  ctx.fillText(`共 ${data.length} 个结果`, pad, 24);
+  ctx.textBaseline = "top";
+  ctx.fillText(`共 ${data.length} 个结果`, pad, 16);
 }
 
 // ── Export CSV ─────────────────────────────────────
