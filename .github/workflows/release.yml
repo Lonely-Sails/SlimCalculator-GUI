@@ -2,9 +2,8 @@
 #
 # 该工作流会:
 # 1. 检出代码
-# 2. 从 minelogy-dev/slime-calculator 的 Releases 下载预编译的 CUDA/C 二进制
-# 3. build.rs 自动将产物打包进 Tauri 应用
-# 4. 发布各平台的直接可运行文件到 GitHub Releases
+# 2. 编译 Tauri 应用
+# 3. 发布各平台的 zip 包到 GitHub Releases
 
 name: Release
 
@@ -59,12 +58,12 @@ jobs:
             ### 📦 下载
             | 平台 | 文件 |
             |------|------|
-            | Windows | `*.exe` |
-            | Linux | `*.AppImage` |
+            | Windows | `slime-calculator-windows.zip` |
+            | Linux | `slime-calculator-linux.zip` |
 
             ### ⚠️ 使用说明
-            - **Windows**: 下载 `.exe` 安装即可
-            - **Linux**: 下载 `.AppImage`，`chmod +x` 后运行
+            - **Windows**: 下载 zip，解压运行安装程序即可
+            - **Linux**: 下载 zip，解压后 `chmod +x SlimeCalculator && ./SlimeCalculator`
             - CUDA 程序已内嵌在包内，开箱即用
 
             ### 🔧 系统要求
@@ -92,13 +91,13 @@ jobs:
           bun install
           cd src-tauri && cargo fetch
 
-      - name: Download pre-built binaries
+      - name: Download CUDA binaries
         uses: robinraju/release-downloader@v1.2
         with:
           repository: 'minelogy-dev/slime-calculator'
           latest: true
           fileName: '*'
-          out-file-path: 'src-tauri/bin'
+          out-file-path: 'downloaded_bins'
 
       - name: Build Tauri App (Windows)
         run: bun tauri build
@@ -106,10 +105,17 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
-      - name: Upload .exe
+      - name: Package and upload
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path staging/libs
+          Copy-Item src-tauri/target/release/SlimeCalculator.exe staging/
+          Copy-Item downloaded_bins/* staging/libs/
+          Compress-Archive -Path staging/* -DestinationPath slime-calculator-windows.zip
+      - name: Upload
         uses: softprops/action-gh-release@v3
         with:
-          files: src-tauri/target/release/bundle/nsis/*.exe
+          files: slime-calculator-windows.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -145,13 +151,13 @@ jobs:
           bun install
           cd src-tauri && cargo fetch
 
-      - name: Download pre-built binaries
+      - name: Download CUDA binaries
         uses: robinraju/release-downloader@v1.2
         with:
           repository: 'minelogy-dev/slime-calculator'
           latest: true
           fileName: '*'
-          out-file-path: 'src-tauri/bin'
+          out-file-path: 'downloaded_bins'
 
       - name: Build Tauri App (Linux)
         run: bun tauri build
@@ -159,10 +165,16 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
-      - name: Upload .AppImage
+      - name: Package and upload
+        run: |
+          mkdir -p staging/libs
+          cp src-tauri/target/release/SlimeCalculator staging/
+          cp downloaded_bins/* staging/libs/
+          cd staging && zip -r ../slime-calculator-linux.zip *
+      - name: Upload
         uses: softprops/action-gh-release@v3
         with:
-          files: src-tauri/target/release/bundle/appimage/*.AppImage
+          files: slime-calculator-linux.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

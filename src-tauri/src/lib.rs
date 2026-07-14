@@ -44,32 +44,22 @@ pub struct AppState {
 
 // ── 辅助函数 ──────────────────────────────────────────────
 
-fn find_bin_dir(app_handle: &tauri::AppHandle) -> PathBuf {
-    // 1. build.rs 编译产物目录 (src-tauri/bin/)
-    let manifest_bin = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("bin");
-    if manifest_bin.join("slime_main").exists() {
-        return manifest_bin;
-    }
-
-    // 2. .app 包内资源目录下的 bin/（打包后运行）
-    if let Ok(rd) = app_handle.path().resource_dir() {
-        let bundled = rd.join("bin");
-        if bundled.join("slime_main").exists() {
-            return bundled;
+fn find_bin_dir() -> PathBuf {
+    // 可执行文件同目录下的 libs/ 文件夹
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let libs = exe_dir.join("libs");
+            if libs.join("slime_main").exists() {
+                return libs;
+            }
+            // 开发模式下直接在同目录下找
+            if exe_dir.join("slime_main").exists() {
+                return exe_dir.to_path_buf();
+            }
+            return libs;
         }
     }
-
-    // 3. 项目根目录 build/
-    let root_build = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .join("build");
-    if root_build.join("slime_main").exists() {
-        return root_build;
-    }
-
-    // 默认返回 build.rs 产物目录
-    manifest_bin
+    PathBuf::from("libs")
 }
 
 fn check_binary(path: &PathBuf, name: &str) -> bool {
@@ -95,9 +85,10 @@ fn run_binary(
     if !bin_path.exists() {
         return Err(format!(
             "❌ 找不到 {}。\n预期路径: {}\n\
-             应用可能已损坏，请重新安装。",
+             请将 {} 放在可执行文件旁 libs/ 目录下。",
             name,
-            bin_path.display()
+            bin_path.display(),
+            name,
         ));
     }
 
@@ -496,7 +487,7 @@ pub fn run() {
             get_app_version,
         ])
         .setup(|app| {
-            let bin_dir = find_bin_dir(&app.handle());
+            let bin_dir = find_bin_dir();
             let state = app.state::<AppState>();
             *state.bin_dir.lock().unwrap() = bin_dir;
             Ok(())
