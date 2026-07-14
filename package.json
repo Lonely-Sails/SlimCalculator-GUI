@@ -1,0 +1,13 @@
+{
+  "name": "slim-calculator",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "tauri": "tauri",
+    "build:slime": "cd slime-calculator && mkdir -p build && gcc -o build/slime_cmp slime_cmp.c -lm -O3 && { which nvcc >/dev/null 2>&1 && nvcc -o build/slime_main slime_main.cu -O3 -use_fast_math -arch=native && nvcc -o build/slime_circle slime_circle.cu -O3 -use_fast_math -arch=native; } || echo '⚠️ nvcc 未安装，跳过 CUDA 编译'"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

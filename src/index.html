@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>史莱姆区块扫描器</title>
+    <script type="module" src="/main.js" defer></script>
+  </head>
+  <body>
+    <div id="app">
+      <!-- 顶部标题栏 -->
+      <header>
+        <div class="header-left">
+          <span class="logo-icon">🐌</span>
+          <h1>史莱姆区块扫描器</h1>
+        </div>
+        <div class="header-right">
+          <span id="bin-status" class="badge">检查二进制文件中...</span>
+        </div>
+      </header>
+
+      <div class="main-layout">
+        <!-- 左侧：参数面板 -->
+        <aside class="panel params-panel">
+          <h2>扫描参数</h2>
+
+          <div class="param-section">
+            <h3>🌍 世界种子</h3>
+            <div class="form-row">
+              <label for="seed">种子 (Seed)</label>
+              <input type="number" id="seed" value="12345" />
+            </div>
+          </div>
+
+          <div class="param-section">
+            <h3>📐 搜索区域</h3>
+            <div class="form-row">
+              <label for="startX">起始 X</label>
+              <input type="number" id="startX" value="-10" />
+              <label for="startZ">起始 Z</label>
+              <input type="number" id="startZ" value="-10" />
+            </div>
+            <div class="form-row">
+              <label for="endX">结束 X</label>
+              <input type="number" id="endX" value="10" />
+              <label for="endZ">结束 Z</label>
+              <input type="number" id="endZ" value="10" />
+            </div>
+          </div>
+
+          <div class="param-section">
+            <h3>🎯 目标矩形</h3>
+            <div class="form-row">
+              <label for="sizeX">宽 (sizeX)</label>
+              <input type="number" id="sizeX" value="5" />
+              <label for="sizeZ">高 (sizeZ)</label>
+              <input type="number" id="sizeZ" value="5" />
+            </div>
+            <div class="form-row">
+              <label for="threshold">阈值 (≥ 史莱姆区块数)</label>
+              <input type="number" id="threshold" value="3" />
+            </div>
+          </div>
+
+          <div class="param-section">
+            <h3>🔧 高级筛选 (可选)</h3>
+            <div class="form-row">
+              <label>
+                <input type="checkbox" id="enableCircle" />
+                圆形筛选 (slime_circle)
+              </label>
+            </div>
+            <div class="form-row sub-param" id="circleParams" style="display:none">
+              <label for="circleRadius">半径</label>
+              <input type="number" id="circleRadius" value="5" />
+            </div>
+            <div class="form-row">
+              <label>
+                <input type="checkbox" id="enableCmp" />
+                距离筛选 (slime_cmp)
+              </label>
+            </div>
+            <div class="form-row sub-param" id="cmpParams" style="display:none">
+              <label for="cmpDistance">最大距离</label>
+              <input type="number" id="cmpDistance" value="1000" />
+              <label for="cmpThreshold">最小史莱姆数</label>
+              <input type="number" id="cmpThreshold" value="1" />
+            </div>
+          </div>
+
+          <div class="param-actions">
+            <button id="runBtn" class="btn-primary" disabled>
+              <span class="btn-icon">▶</span> 开始扫描
+            </button>
+            <button id="stopBtn" class="btn-secondary" style="display:none">
+              ⏹ 停止
+            </button>
+          </div>
+        </aside>
+
+        <!-- 右侧：结果面板 -->
+        <main class="panel results-panel">
+          <!-- 进度条 -->
+          <div id="progressContainer" style="display:none">
+            <div class="progress-bar">
+              <div id="progressFill" class="progress-fill"></div>
+            </div>
+            <p id="progressMsg" class="progress-msg">准备中...</p>
+          </div>
+
+          <!-- 状态/空状态 -->
+          <div id="emptyState" class="empty-state">
+            <div class="empty-icon">🔍</div>
+            <h2>准备就绪</h2>
+            <p>设置左侧参数，点击「开始扫描」</p>
+            <p class="hint">CUDA 程序已内嵌在应用内</p>
+          </div>
+
+          <!-- 结果概览 -->
+          <div id="resultsOverview" style="display:none">
+            <div class="stats-row">
+              <div class="stat-card">
+                <span class="stat-value" id="statTotal">0</span>
+                <span class="stat-label">找到的区域</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-value" id="statAvg">0</span>
+                <span class="stat-label">平均史莱姆数</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-value" id="statMax">0</span>
+                <span class="stat-label">最多史莱姆数</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-value" id="statDist">-</span>
+                <span class="stat-label">最近距离</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 可视化 -->
+          <div id="chartContainer" style="display:none">
+            <h3>📍 结果分布图</h3>
+            <div class="chart-wrapper">
+              <canvas id="resultChart" width="600" height="400"></canvas>
+              <div class="chart-legend">
+                <span><span class="dot dot-hot"></span> 高密度</span>
+                <span><span class="dot dot-warm"></span> 中密度</span>
+                <span><span class="dot dot-cold"></span> 低密度</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 数据表格 -->
+          <div id="tableContainer" style="display:none">
+            <div class="table-header">
+              <h3>📋 详细结果</h3>
+              <div class="table-controls">
+                <span id="rowCount" class="row-count"></span>
+                <button id="exportBtn" class="btn-small">📥 导出 CSV</button>
+              </div>
+            </div>
+            <div class="table-scroll">
+              <table id="resultTable">
+                <thead>
+                  <tr>
+                    <th>X (方块坐标)</th>
+                    <th>Z (方块坐标)</th>
+                    <th>史莱姆区块数</th>
+                    <th id="distHeader" style="display:none">距离</th>
+                  </tr>
+                </thead>
+                <tbody id="resultBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </main>
+      </div>
+
+      <!-- Toast 消息 -->
+      <div id="toastContainer"></div>
+    </div>
+  </body>
+</html>
