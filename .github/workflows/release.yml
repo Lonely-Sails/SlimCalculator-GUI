@@ -109,7 +109,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path staging/libs
-          Copy-Item src-tauri/target/release/SlimeCalculator.exe staging/
+          Copy-Item src-tauri/target/release/slim-calculator.exe staging/SlimeCalculator.exe
           Copy-Item downloaded_bins/* staging/libs/
           Compress-Archive -Path staging/* -DestinationPath slime-calculator-windows.zip
       - name: Upload
@@ -168,7 +168,7 @@ jobs:
       - name: Package and upload
         run: |
           mkdir -p staging/libs
-          cp src-tauri/target/release/SlimeCalculator staging/
+          cp src-tauri/target/release/slim-calculator staging/SlimeCalculator
           cp downloaded_bins/* staging/libs/
           cd staging && zip -r ../slime-calculator-linux.zip *
       - name: Upload
