@@ -59,17 +59,7 @@ fn find_bin_dir(app_handle: &tauri::AppHandle) -> PathBuf {
         }
     }
 
-    // 3. slime-calculator/build/（手动编译后）
-    let submodule_build = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .join("slime-calculator")
-        .join("build");
-    if submodule_build.join("slime_main").exists() {
-        return submodule_build;
-    }
-
-    // 4. 项目根目录 build/
+    // 3. 项目根目录 build/
     let root_build = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap()

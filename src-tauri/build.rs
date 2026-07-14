@@ -7,125 +7,36 @@ fn main() {
     tauri_build::build();
 }
 
-/// 编译 slime-calculator 的 C/CUDA 程序，并将产物复制到 src-tauri/bin/
+/// 从 GitHub Releases 下载 slime-calculator 二进制文件
 fn compile_slime_calculator() {
     let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
-    let slime_dir = manifest_dir.parent().unwrap().join("slime-calculator");
     let bin_dir = manifest_dir.join("bin");
 
     // 确保 bin 目录存在
     let _ = std::fs::create_dir_all(&bin_dir);
 
     // 判断平台后缀
-    let (exe_ext, _) = if cfg!(target_os = "windows") {
-        (".exe", "windows")
+    let exe_ext = if cfg!(target_os = "windows") {
+        ".exe"
     } else {
-        ("", "unix")
+        ""
     };
 
-    // ── 编译 slime_cmp (纯 C，用 gcc/cc) ──
-    let cmp_src = slime_dir.join("slime_cmp.c");
-    let cmp_out = bin_dir.join(format!("slime_cmp{}", exe_ext));
-    if cmp_src.exists() {
-        let cc = which_cc();
-        let status = Command::new(&cc)
-            .args([
-                "-o",
-                cmp_out.to_str().unwrap(),
-                cmp_src.to_str().unwrap(),
-                "-lm",
-                "-O3",
-                "-march=native",
-            ])
-            .status();
+    let repo = "minelogy-dev/slime-calculator";
+    let targets = ["slime_main", "slime_circle", "slime_cmp"];
 
-        match status {
-            Ok(s) if s.success() => {
-                println!("cargo:warning=✅ 编译 slime_cmp 成功");
-            }
-            Ok(s) => {
-                println!(
-                    "cargo:warning=⚠️  slime_cmp 编译失败 (exit: {}), 将尝试从 build/ 复制",
-                    s
-                );
-                copy_from_build(&slime_dir, &bin_dir, "slime_cmp", exe_ext);
-            }
-            Err(e) => {
-                println!("cargo:warning=⚠️  slime_cmp 编译失败: {}, 将尝试从 build/ 复制", e);
-                copy_from_build(&slime_dir, &bin_dir, "slime_cmp", exe_ext);
-            }
+    for name in &targets {
+        let output = bin_dir.join(format!("{}{}", name, exe_ext));
+        if output.exists() {
+            println!("cargo:warning=✅ {} 已存在，跳过", name);
+            continue;
         }
-    } else {
-        println!("cargo:warning=⚠️  未找到 slime_cmp.c，尝试从 build/ 复制");
-        copy_from_build(&slime_dir, &bin_dir, "slime_cmp", exe_ext);
-    }
 
-    // ── 编译 slime_main (CUDA) ──
-    let main_src = slime_dir.join("slime_main.cu");
-    let main_out = bin_dir.join(format!("slime_main{}", exe_ext));
-    if main_src.exists() {
-        if let Ok(nvcc) = which_nvcc() {
-            let status = Command::new(&nvcc)
-                .args([
-                    "-o",
-                    main_out.to_str().unwrap(),
-                    main_src.to_str().unwrap(),
-                    "-O3",
-                    "-use_fast_math",
-                    "-arch=native",
-                ])
-                .status();
-
-            match status {
-                Ok(s) if s.success() => {
-                    println!("cargo:warning=✅ 编译 slime_main 成功");
-                }
-                _ => {
-                    println!("cargo:warning=⚠️  slime_main CUDA 编译失败，尝试从 build/ 复制");
-                    copy_from_build(&slime_dir, &bin_dir, "slime_main", exe_ext);
-                }
-            }
+        if download_from_github(repo, &bin_dir, name, exe_ext) {
+            println!("cargo:warning=✅ 从 GitHub Releases 下载 {} 成功", name);
         } else {
-            println!("cargo:warning=⚠️  未找到 nvcc，尝试从 build/ 复制 slime_main");
-            copy_from_build(&slime_dir, &bin_dir, "slime_main", exe_ext);
+            println!("cargo:warning=❌ 从 GitHub Releases 下载 {} 失败", name);
         }
-    } else {
-        println!("cargo:warning=⚠️  未找到 slime_main.cu，尝试从 build/ 复制");
-        copy_from_build(&slime_dir, &bin_dir, "slime_main", exe_ext);
-    }
-
-    // ── 编译 slime_circle (CUDA) ──
-    let circle_src = slime_dir.join("slime_circle.cu");
-    let circle_out = bin_dir.join(format!("slime_circle{}", exe_ext));
-    if circle_src.exists() {
-        if let Ok(nvcc) = which_nvcc() {
-            let status = Command::new(&nvcc)
-                .args([
-                    "-o",
-                    circle_out.to_str().unwrap(),
-                    circle_src.to_str().unwrap(),
-                    "-O3",
-                    "-use_fast_math",
-                    "-arch=native",
-                ])
-                .status();
-
-            match status {
-                Ok(s) if s.success() => {
-                    println!("cargo:warning=✅ 编译 slime_circle 成功");
-                }
-                _ => {
-                    println!("cargo:warning=⚠️  slime_circle CUDA 编译失败，尝试从 build/ 复制");
-                    copy_from_build(&slime_dir, &bin_dir, "slime_circle", exe_ext);
-                }
-            }
-        } else {
-            println!("cargo:warning=⚠️  未找到 nvcc，尝试从 build/ 复制 slime_circle");
-            copy_from_build(&slime_dir, &bin_dir, "slime_circle", exe_ext);
-        }
-    } else {
-        println!("cargo:warning=⚠️  未找到 slime_circle.cu，尝试从 build/ 复制");
-        copy_from_build(&slime_dir, &bin_dir, "slime_circle", exe_ext);
     }
 
     // 列出最终产物
@@ -140,52 +51,53 @@ fn compile_slime_calculator() {
     }
 }
 
-fn which_cc() -> String {
-    for candidate in &["gcc", "cc", "clang"] {
-        if Command::new(candidate)
-            .arg("--version")
-            .output()
-            .is_ok()
-        {
-            return candidate.to_string();
-        }
-    }
-    "cc".to_string()
-}
+/// 从 GitHub Releases 下载二进制文件
+fn download_from_github(repo: &str, bin_dir: &PathBuf, name: &str, exe_ext: &str) -> bool {
+    let output_path = bin_dir.join(format!("{}{}", name, exe_ext));
+    let download_url = format!(
+        "https://github.com/{repo}/releases/latest/download/{name}{exe_ext}"
+    );
 
-fn which_nvcc() -> Result<String, ()> {
-    for candidate in &["nvcc", "/usr/local/cuda/bin/nvcc"] {
-        if Command::new(candidate)
-            .arg("--version")
-            .output()
-            .is_ok()
-        {
-            return Ok(candidate.to_string());
-        }
-    }
-    Err(())
-}
-
-fn copy_from_build(slime_dir: &PathBuf, bin_dir: &PathBuf, name: &str, exe_ext: &str) {
-    let build_dir = slime_dir.join("build");
-    let src = build_dir.join(format!("{}{}", name, exe_ext));
-    let dst = bin_dir.join(format!("{}{}", name, exe_ext));
-    if src.exists() {
-        match std::fs::copy(&src, &dst) {
-            Ok(_) => {
-                // 保留可执行权限 (Unix)
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    let _ = std::fs::set_permissions(&dst, std::fs::Permissions::from_mode(0o755));
-                }
-                println!("cargo:warning=📋 从 build/ 复制 {}", name);
-            }
-            Err(e) => {
-                println!("cargo:warning=❌ 复制 {} 失败: {}", name, e);
+    // macOS / Linux 使用 curl
+    if !cfg!(target_os = "windows") {
+        let status = Command::new("curl")
+            .args([
+                "-fsSL",
+                "-o",
+                output_path.to_str().unwrap(),
+                &download_url,
+            ])
+            .status();
+        if let Ok(s) = status {
+            if s.success() {
+                // 保留可执行权限
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(
+                    &output_path,
+                    std::fs::Permissions::from_mode(0o755),
+                );
+                return true;
             }
         }
-    } else {
-        println!("cargo:warning=❌ 找不到 {} 的预编译文件 ({}), 请先编译", name, src.display());
     }
+
+    // Windows 使用 PowerShell
+    if cfg!(target_os = "windows") {
+        let status = Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                &format!(
+                    "Invoke-WebRequest -Uri '{}' -OutFile '{}'",
+                    download_url,
+                    output_path.display()
+                ),
+            ])
+            .status();
+        if let Ok(s) = status {
+            return s.success();
+        }
+    }
+
+    false
 }

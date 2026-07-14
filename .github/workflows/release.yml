@@ -1,9 +1,9 @@
 # 史莱姆区块扫描器 - 发布工作流
 #
 # 该工作流会:
-# 1. 检出代码（含 slime-calculator 子模块）
-# 2. 在对应平台上安装 CUDA Toolkit 并编译 CUDA/C 程序
-# 3. build.rs 自动将编译产物打包进 Tauri 应用
+# 1. 检出代码
+# 2. 从 minelogy-dev/slime-calculator 的 Releases 下载预编译的 CUDA/C 二进制
+# 3. build.rs 自动将产物打包进 Tauri 应用
 # 4. 发布各平台的直接可运行文件到 GitHub Releases
 
 name: Release
@@ -35,8 +35,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Get version
         id: get_version
@@ -61,13 +59,10 @@ jobs:
             ### 📦 下载
             | 平台 | 文件 |
             |------|------|
-            | macOS (Intel) | `史莱姆区块扫描器.app` |
-            | macOS (Apple Silicon) | `史莱姆区块扫描器.app` |
             | Windows | `*.exe` |
             | Linux | `*.AppImage` |
 
             ### ⚠️ 使用说明
-            - **macOS**: 下载 `.app` 直接运行（若提示安全风险 → 系统设置 → 隐私与安全性 → 仍要打开）
             - **Windows**: 下载 `.exe` 安装即可
             - **Linux**: 下载 `.AppImage`，`chmod +x` 后运行
             - CUDA 程序已内嵌在包内，开箱即用
@@ -75,56 +70,6 @@ jobs:
             ### 🔧 系统要求
             - **GPU**: NVIDIA 显卡（支持 CUDA）
             - **驱动**: 安装最新的 NVIDIA 驱动
-
-  # ════════════════════════════════════════════════
-  # macOS 构建
-  # ════════════════════════════════════════════════
-  build-macos:
-    needs: create-release
-    runs-on: macos-latest
-    strategy:
-      matrix:
-        arch: [x86_64, aarch64]
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: |
-            ${{ matrix.arch == 'aarch64' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin' }}
-
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Install dependencies
-        run: |
-          bun install
-          cd src-tauri && cargo fetch
-
-      # macOS: 只编译纯 C 部分 (slime_cmp)
-      # CUDA 部分需用户在有 NVIDIA GPU 的机器上自行编译
-      - name: 编译 C 程序 (slime_cmp)
-        run: |
-          cd slime-calculator
-          mkdir -p build
-          gcc -o build/slime_cmp slime_cmp.c -lm -O3 -march=native -flto
-
-      - name: Build Tauri App (macOS ${{ matrix.arch }})
-        run: bun tauri build --target ${{ matrix.arch == 'aarch64' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin' }}
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-
-      - name: Upload .app
-        uses: softprops/action-gh-release@v3
-        with:
-          files: src-tauri/target/${{ matrix.arch == 'aarch64' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin' }}/release/bundle/macos/*.app
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ════════════════════════════════════════════════
   # Windows 构建
@@ -135,8 +80,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -144,36 +87,18 @@ jobs:
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Setup CUDA
-        uses: Jimver/cuda-toolkit@v0.2.35
-        id: cuda-toolkit
-        with:
-          cuda: "13.2.0"
-
       - name: Install dependencies
         run: |
           bun install
           cd src-tauri && cargo fetch
 
-      # Windows: 编译 C 和 CUDA 程序
-      - name: 编译 slime_cmp (C)
-        run: |
-          cd slime-calculator
-          mkdir build -Force
-          gcc -o build/slime_cmp.exe slime_cmp.c -lm -O3
-        shell: pwsh
-
-      - name: 编译 slime_main (CUDA)
-        run: |
-          cd slime-calculator
-          nvcc -o build/slime_main.exe slime_main.cu -O3 -use_fast_math -arch=native
-        shell: pwsh
-
-      - name: 编译 slime_circle (CUDA)
-        run: |
-          cd slime-calculator
-          nvcc -o build/slime_circle.exe slime_circle.cu -O3 -use_fast_math -arch=native
-        shell: pwsh
+      - name: Download pre-built binaries
+        uses: robinraju/release-downloader@v1.2
+        with:
+          repository: 'minelogy-dev/slime-calculator'
+          latest: true
+          fileName: '*'
+          out-file-path: 'src-tauri/bin'
 
       - name: Build Tauri App (Windows)
         run: bun tauri build
@@ -197,20 +122,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
-
-      - name: Setup CUDA
-        uses: Jimver/cuda-toolkit@v0.2.35
-        id: cuda-toolkit
-        with:
-          cuda: "13.2.0"
 
       - name: Install system dependencies
         run: |
@@ -228,14 +145,13 @@ jobs:
           bun install
           cd src-tauri && cargo fetch
 
-      # Linux: 编译 C 和 CUDA 程序
-      - name: 编译所有程序
-        run: |
-          cd slime-calculator
-          mkdir -p build
-          gcc -o build/slime_cmp slime_cmp.c -lm -O3 -march=native -flto
-          nvcc -o build/slime_main slime_main.cu -O3 -use_fast_math -arch=native
-          nvcc -o build/slime_circle slime_circle.cu -O3 -use_fast_math -arch=native
+      - name: Download pre-built binaries
+        uses: robinraju/release-downloader@v1.2
+        with:
+          repository: 'minelogy-dev/slime-calculator'
+          latest: true
+          fileName: '*'
+          out-file-path: 'src-tauri/bin'
 
       - name: Build Tauri App (Linux)
         run: bun tauri build
@@ -254,7 +170,7 @@ jobs:
   # 发布完成 - 标记为正式版
   # ────────────────────────────────────────────────
   finalize:
-    needs: [create-release, build-macos, build-windows, build-linux]
+    needs: [create-release, build-windows, build-linux]
     runs-on: ubuntu-latest
 
     steps:
