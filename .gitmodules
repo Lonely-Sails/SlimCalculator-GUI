@@ -1,0 +1,3 @@
+[submodule "slime-calculator"]
+	path = slime-calculator
+	url = https://github.com/minelogy-dev/slime-calculator.git
