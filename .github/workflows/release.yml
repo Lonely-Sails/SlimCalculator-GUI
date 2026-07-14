@@ -145,7 +145,7 @@ jobs:
         uses: oven-sh/setup-bun@v2
 
       - name: Install CUDA Toolkit
-        uses: Jimver/cuda-toolkit@v0.2
+        uses: Jimver/cuda-toolkit@v0.2.35
         with:
           cuda: "12.5"
           method: "network"
@@ -208,7 +208,7 @@ jobs:
         uses: oven-sh/setup-bun@v2
 
       - name: Install CUDA Toolkit
-        uses: Jimver/cuda-toolkit@v0.2
+        uses: Jimver/cuda-toolkit@v0.2.35
         with:
           cuda: "12.5"
           method: "network"
