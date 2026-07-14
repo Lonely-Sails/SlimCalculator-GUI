@@ -144,12 +144,11 @@ jobs:
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Install CUDA Toolkit
+      - name: Setup CUDA
         uses: Jimver/cuda-toolkit@v0.2.35
+        id: cuda-toolkit
         with:
-          cuda: "12.5"
-          method: "network"
-          sub-packages: '["nvcc"]'
+          cuda: "13.2.0"
 
       - name: Install dependencies
         run: |
@@ -207,12 +206,11 @@ jobs:
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Install CUDA Toolkit
+      - name: Setup CUDA
         uses: Jimver/cuda-toolkit@v0.2.35
+        id: cuda-toolkit
         with:
-          cuda: "12.5"
-          method: "network"
-          sub-packages: '["nvcc"]'
+          cuda: "13.2.0"
 
       - name: Install system dependencies
         run: |
